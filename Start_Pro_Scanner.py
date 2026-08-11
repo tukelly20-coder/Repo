@@ -39,6 +39,7 @@ PROPACK_DIR = ROOT_DIR / "propack" / "propack"
 SCANNER_DIR = ROOT_DIR / "folderscaner"
 SCANNER_BACKEND_DIR = SCANNER_DIR / "backend"
 SCANNER_FRONTEND_DIR = SCANNER_DIR / "frontend"
+SCANNER_VENV_PYTHON = SCANNER_DIR / ".venv" / "Scripts" / "python.exe"
 SCANNER_INTERNAL_HOST = "127.0.0.1"
 SCANNER_INTERNAL_PORT = "18001"
 
@@ -163,6 +164,13 @@ def env_with_node(base_dir: Path) -> dict[str, str]:
     return env
 
 
+def scanner_python_executable() -> str:
+    """Use the scanner virtualenv when available."""
+    if SCANNER_VENV_PYTHON.exists():
+        return str(SCANNER_VENV_PYTHON)
+    return sys.executable
+
+
 def start_propack() -> subprocess.Popen:
     ensure_path(PROPACK_DIR / "server.py", "Propack server")
     env = os.environ.copy()
@@ -196,7 +204,7 @@ def start_scanner_backend() -> subprocess.Popen:
     log("Starting Folder Scanner backend...")
     proc = subprocess.Popen(
         [
-            sys.executable,
+            scanner_python_executable(),
             "-m",
             "uvicorn",
             "app.main:app",
