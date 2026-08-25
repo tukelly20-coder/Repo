@@ -24,9 +24,11 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import ctypes
 import os
 import signal
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -53,10 +55,25 @@ SCANNER_FRONTEND_LOG = LOG_DIR / "scanner_frontend.log"
 processes: list[tuple[str, subprocess.Popen]] = []
 lock = threading.Lock()
 shutting_down = False
+windows_ctrl_handler = None
 
 
 def log(message: str) -> None:
     print(f"[Start_Pro_Scanner] {message}", flush=True)
+
+
+def local_ipv4_addresses() -> list[str]:
+    addresses: list[str] = []
+    try:
+        hostname = socket.gethostname()
+        for item in socket.getaddrinfo(hostname, None, socket.AF_INET):
+            ip = item[4][0]
+            if ip.startswith("127.") or ip in addresses:
+                continue
+            addresses.append(ip)
+    except OSError:
+        pass
+    return addresses
 
 
 def ensure_path(path: Path, label: str) -> None:
@@ -148,12 +165,28 @@ def handle_signal(signum, frame) -> None:
     raise SystemExit(130)
 
 
+def handle_windows_console_event(ctrl_type: int) -> bool:
+    """Stop child servers when the batch console is closed on Windows."""
+    # CTRL_C_EVENT=0, CTRL_BREAK_EVENT=1, CTRL_CLOSE_EVENT=2,
+    # CTRL_LOGOFF_EVENT=5, CTRL_SHUTDOWN_EVENT=6.
+    if ctrl_type in {0, 1, 2, 5, 6}:
+        log(f"Console event {ctrl_type}; stopping all servers...")
+        stop_all()
+        return True
+    return False
+
+
 def install_signal_handlers() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
             signal.signal(sig, handle_signal)
         except (ValueError, OSError):
             pass
+    if sys.platform == "win32":
+        global windows_ctrl_handler
+        handler_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)
+        windows_ctrl_handler = handler_type(handle_windows_console_event)
+        ctypes.windll.kernel32.SetConsoleCtrlHandler(windows_ctrl_handler, True)
 
 
 def env_with_node(base_dir: Path) -> dict[str, str]:
@@ -186,7 +219,11 @@ def start_propack() -> subprocess.Popen:
         **child_process_options(),
     )
     add_process("Propack VP", proc)
-    log(f"Propack VP PID {proc.pid} | http://localhost:8001 | log: {PROPACK_LOG}")
+    access_urls = ["http://localhost:8001"] + [
+        f"http://{ip}:8001" for ip in local_ipv4_addresses()
+    ]
+    log(f"Propack VP PID {proc.pid} | public bind 0.0.0.0:8001 | log: {PROPACK_LOG}")
+    log("Propack access URLs: " + ", ".join(access_urls))
     return proc
 
 
@@ -199,7 +236,7 @@ def start_scanner_backend() -> subprocess.Popen:
     env.setdefault("PYTHONIOENCODING", "utf-8")
 
     if not env.get("SMB_ROOT"):
-        log("Warning: SMB_ROOT is not set. Scanner backend may stop until .env or env var is configured.")
+        log("SMB_ROOT is not set. Scanner will use saved user SMB roots only.")
 
     log("Starting Folder Scanner backend...")
     proc = subprocess.Popen(
@@ -208,7 +245,6 @@ def start_scanner_backend() -> subprocess.Popen:
             "-m",
             "uvicorn",
             "app.main:app",
-            "--reload",
             "--host",
             env["SERVER_HOST"],
             "--port",
@@ -287,6 +323,8 @@ def main(argv: list[str] | None = None) -> int:
     log("Servers requested:")
     if start_propack_flag:
         log("  Propack VP        : http://localhost:8001")
+        for ip in local_ipv4_addresses():
+            log(f"  Propack VP LAN/VPN: http://{ip}:8001")
         log("  Propack TCP       : localhost:12345")
     if start_scanner_flag:
         log(f"  Scanner backend   : internal http://{SCANNER_INTERNAL_HOST}:{SCANNER_INTERNAL_PORT}")
