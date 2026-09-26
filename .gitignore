@@ -1,2 +1,4 @@
 .pnpm-store/
 chrome-devtools-mcp/
+__pycache__/
+logs/
