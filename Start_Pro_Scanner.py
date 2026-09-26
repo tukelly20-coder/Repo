@@ -37,7 +37,7 @@ from pathlib import Path
 
 
 ROOT_DIR = Path(__file__).resolve().parent
-PROPACK_DIR = ROOT_DIR / "propack" / "propack"
+PROPACK_DIR = ROOT_DIR / "propack"
 SCANNER_DIR = ROOT_DIR / "folderscaner"
 SCANNER_BACKEND_DIR = SCANNER_DIR / "backend"
 SCANNER_FRONTEND_DIR = SCANNER_DIR / "frontend"
