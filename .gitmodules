@@ -1,0 +1,6 @@
+[submodule "folderscaner"]
+	path = folderscaner
+	url = https://github.com/tukelly20-coder/folderscaner.git
+[submodule "propack"]
+	path = propack
+	url = https://github.com/tukelly20-coder/propack.git
