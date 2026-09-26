@@ -4,3 +4,4 @@
 [submodule "propack"]
 	path = propack
 	url = https://github.com/tukelly20-coder/propack.git
+	ignore = untracked

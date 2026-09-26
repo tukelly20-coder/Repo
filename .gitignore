@@ -1,3 +1,2 @@
-__pycache__/
-*.py[cod]
-logs/
+.pnpm-store/
+chrome-devtools-mcp/
