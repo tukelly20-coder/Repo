@@ -5,3 +5,6 @@
 	path = propack
 	url = https://github.com/tukelly20-coder/propack.git
 	ignore = untracked
+[submodule "chrome-devtools-mcp"]
+	path = chrome-devtools-mcp
+	url = https://github.com/ChromeDevTools/chrome-devtools-mcp.git
