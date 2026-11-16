@@ -1,0 +1,105 @@
+version: "3.9"
+
+services:
+  # ============================================================
+  # FOLDERS CANNER - Backend (FastAPI)
+  # ============================================================
+  scanner-backend:
+    build:
+      context: ./folderscaner
+      dockerfile: backend/Dockerfile
+    container_name: scanner-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=sqlite:////app/data/folders.db
+      - SMB_ROOT=${SMB_ROOT}
+      - SMB_USERNAME=${SMB_USERNAME}
+      - SMB_PASSWORD=${SMB_PASSWORD}
+      - SMB_DOMAIN=${SMB_DOMAIN}
+      - SCAN_INTERVAL=${SCAN_INTERVAL:-10}
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=18001
+      - EXPORT_DIR=/app/exports
+    expose:
+      - "18001"
+    volumes:
+      - scanner-data:/app/data
+      - scanner-exports:/app/exports
+      - ${SMB_ROOT:-./folderscaner/test_smb_root}:/smb:ro
+    networks:
+      - repo-net
+
+  # ============================================================
+  # FOLDERS CANNER - Frontend (Nginx + React build)
+  # ============================================================
+  scanner-frontend:
+    build:
+      context: ./folderscaner
+      dockerfile: frontend/Dockerfile
+    container_name: scanner-frontend
+    restart: unless-stopped
+    ports:
+      - "8002:80"
+    depends_on:
+      - scanner-backend
+    networks:
+      - repo-net
+
+  # ============================================================
+  # FOLDERS CANNER - Database (PostgreSQL)
+  # ============================================================
+  scanner-db:
+    image: postgres:16-alpine
+    container_name: scanner-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-folder_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-folder_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-folder_sync}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - repo-net
+
+  # ============================================================
+  # PROPACK VP - Flask server (Quản lý dự án + mã bản vẽ)
+  # ============================================================
+  propack-server:
+    build:
+      context: ./propack
+      dockerfile: Dockerfile
+    container_name: propack-server
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+      - "12345:12345"
+    environment:
+      - SERVER_LOG_LEVEL=INFO
+      - SERVER_LOG_REQUESTS=1
+      - SERVER_LOG_STATIC=0
+    volumes:
+      - propack-db:/app/DB.db
+      - propack-used-codes:/app/used_codes.json
+      - propack-sessions:/app/web_sessions.json
+      - propack-credentials:/app/credentials.json
+      - propack-system-prompt:/app/system_prompt.json
+      - propack-fallback-excel:/app/misc/fallback_excel
+    networks:
+      - repo-net
+
+networks:
+  repo-net:
+    driver: bridge
+
+volumes:
+  scanner-data:
+  scanner-exports:
+  postgres_data:
+  propack-db:
+  propack-used-codes:
+  propack-sessions:
+  propack-credentials:
+  propack-system-prompt:
+  propack-fallback-excel:
